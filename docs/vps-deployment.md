@@ -144,11 +144,15 @@ docker run -d --name attendio-frontend --restart unless-stopped -p 127.0.0.1:517
 
 ## Host Nginx + SSL
 
-Install the Nginx config:
+First certificate issue needs an HTTP-only config. Do not install the final HTTPS config before certificates exist, because `nginx -t` will fail on missing `/etc/letsencrypt/live/...` files.
+
+Install the pre-cert Nginx config:
 
 ```bash
-sudo cp /opt/attendio/backend/infra/vps/attendio.nginx.conf /etc/nginx/sites-available/attendio
+sudo mkdir -p /var/www/certbot
+sudo cp /opt/attendio/backend/infra/vps/attendio.pre-cert.nginx.conf /etc/nginx/sites-available/attendio
 sudo ln -sf /etc/nginx/sites-available/attendio /etc/nginx/sites-enabled/attendio
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -157,6 +161,13 @@ Issue certificates:
 
 ```bash
 sudo certbot --nginx -d attendio.technoflick.com -d api.attendio.technoflick.com
+```
+
+After certificates exist, install the final HTTPS config:
+
+```bash
+sudo cp /opt/attendio/backend/infra/vps/attendio.nginx.conf /etc/nginx/sites-available/attendio
+sudo nginx -t
 sudo systemctl reload nginx
 ```
 
