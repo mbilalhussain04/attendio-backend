@@ -197,6 +197,21 @@ docker compose exec leave-service alembic upgrade head
 docker compose ps
 ```
 
+If the backend Nginx config changed, reload the Docker gateway after the deploy:
+
+```bash
+docker compose exec nginx nginx -t
+docker compose exec nginx nginx -s reload || docker compose restart nginx
+```
+
+If the host Nginx config changed, reinstall and reload it too:
+
+```bash
+sudo cp /opt/attendio/backend/infra/vps/attendio.nginx.conf /etc/nginx/sites-available/attendio
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
 Frontend:
 
 ```bash
@@ -278,6 +293,20 @@ curl -fsS https://api.attendio.technoflick.com/api/v1/health
 docker compose -f /opt/attendio/backend/docker-compose.yml ps
 curl -fsS http://127.0.0.1:8080/nginx-health
 docker logs --tail=100 attendio-frontend
+```
+
+## SSO Header Troubleshooting
+
+Microsoft and Google callbacks can return large response headers because the backend sets secure auth cookies and redirects in the same response. If the VPS shows `upstream sent too big header while reading response header from upstream`, pull the latest Nginx config and reload both layers:
+
+```bash
+cd /opt/attendio/backend
+git pull
+docker compose exec nginx nginx -t
+docker compose exec nginx nginx -s reload || docker compose restart nginx
+sudo cp /opt/attendio/backend/infra/vps/attendio.nginx.conf /etc/nginx/sites-available/attendio
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
 ## Backups
