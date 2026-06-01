@@ -188,6 +188,7 @@ Backend:
 cd /opt/attendio/backend
 git pull
 docker compose up --build -d --remove-orphans
+docker compose exec nginx nginx -s reload || docker compose restart nginx
 docker compose exec auth-service alembic upgrade head
 docker compose exec attendance-service alembic upgrade head
 docker compose exec storage-service alembic upgrade head
