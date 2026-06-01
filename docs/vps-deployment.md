@@ -115,6 +115,21 @@ docker compose up --build -d
 docker compose ps
 ```
 
+If Postgres fails during the very first fresh setup, inspect it with:
+
+```bash
+docker compose logs --tail=100 platform-postgres
+```
+
+If the failure happened before any real production data exists, reset the broken init volume and start again:
+
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
+Do not run `down -v` after real users/data exist; use backups and migrations instead.
+
 ## Start frontend container
 
 ```bash
