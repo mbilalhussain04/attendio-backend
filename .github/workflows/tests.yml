@@ -17,7 +17,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest httpx fastapi uvicorn
       - name: Run shared and gateway tests
-        working-directory: Services
         run: |
           python -m pytest shared/tests
           python -m pytest docs-gateway/tests
