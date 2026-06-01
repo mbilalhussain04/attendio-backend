@@ -9,11 +9,20 @@ branch_labels = None
 depends_on = None
 
 
+def _has_column(table_name: str, column_name: str) -> bool:
+    inspector = sa.inspect(op.get_bind())
+    return column_name in {column["name"] for column in inspector.get_columns(table_name)}
+
+
 def upgrade() -> None:
-    op.add_column('attendance_correction_requests', sa.Column('original_check_in_at', sa.DateTime(), nullable=True))
-    op.add_column('attendance_correction_requests', sa.Column('original_check_out_at', sa.DateTime(), nullable=True))
-    op.add_column('attendance_correction_requests', sa.Column('original_break_minutes', sa.Integer(), nullable=True))
-    op.add_column('attendance_correction_requests', sa.Column('entry_date', sa.Date(), nullable=True))
+    for column in [
+        sa.Column('original_check_in_at', sa.DateTime(), nullable=True),
+        sa.Column('original_check_out_at', sa.DateTime(), nullable=True),
+        sa.Column('original_break_minutes', sa.Integer(), nullable=True),
+        sa.Column('entry_date', sa.Date(), nullable=True),
+    ]:
+        if not _has_column('attendance_correction_requests', column.name):
+            op.add_column('attendance_correction_requests', column)
 
     bind = op.get_bind()
     bind.execute(sa.text("""
@@ -43,7 +52,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column('attendance_correction_requests', 'entry_date')
-    op.drop_column('attendance_correction_requests', 'original_break_minutes')
-    op.drop_column('attendance_correction_requests', 'original_check_out_at')
-    op.drop_column('attendance_correction_requests', 'original_check_in_at')
+    for column_name in [
+        'entry_date',
+        'original_break_minutes',
+        'original_check_out_at',
+        'original_check_in_at',
+    ]:
+        if _has_column('attendance_correction_requests', column_name):
+            op.drop_column('attendance_correction_requests', column_name)
