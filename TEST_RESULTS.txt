@@ -1,0 +1,8 @@
+Verified locally with:
+- shared/tests: passed
+- docs-gateway/tests: passed
+- auth-service/tests: passed
+- attendance-service/tests: passed
+
+Command used:
+  bash ./scripts/test-all.sh

@@ -1,0 +1,91 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+3 0 obj
+<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+endobj
+4 0 obj
+<< /Type /Catalog /Pages 3 0 R >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 3 0 R /MediaBox [0 0 595 842] /Resources << /Font << /FR 1 0 R /FB 2 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 1457 >>
+stream
+1 1 1 rg
+0 0 595 842 re f
+0.02 0.45 0.98 rg
+45 760 38 38 re f
+0.03 0.09 0.22 rg
+BT /FB 24 Tf 96 772 Td (Attendio) Tj ET
+BT /FB 18 Tf 45 710 Td (Leave Balance Sheet 2026) Tj ET
+BT /FR 10 Tf 45 680 Td (Employee: Muhammad 1 Bilal Hussain) Tj ET
+BT /FR 9 Tf 360 680 Td (Generated: 5/21/2026, 8:06:25 PM) Tj ET
+0.02 0.45 0.98 rg
+45 630 510 22 re f
+1 1 1 rg
+BT /FB 9 Tf 51 638 Td (Leave Type) Tj ET
+1 1 1 rg
+BT /FB 9 Tf 241 638 Td (Entitled) Tj ET
+1 1 1 rg
+BT /FB 9 Tf 323 638 Td (Taken) Tj ET
+1 1 1 rg
+BT /FB 9 Tf 393 638 Td (Pending) Tj ET
+1 1 1 rg
+BT /FB 9 Tf 463 638 Td (Available) Tj ET
+0.98 0.99 1 rg
+45 608 510 22 re f
+0.03 0.09 0.22 rg
+BT /FR 8 Tf 51 616 Td (Annual) Tj ET
+0.03 0.09 0.22 rg
+BT /FR 8 Tf 241 616 Td (-) Tj ET
+0.03 0.09 0.22 rg
+BT /FR 8 Tf 323 616 Td (0 d) Tj ET
+0.03 0.09 0.22 rg
+BT /FR 8 Tf 393 616 Td (0 d) Tj ET
+0.03 0.09 0.22 rg
+BT /FR 8 Tf 463 616 Td (-) Tj ET
+0.55 0.58 0.64 RG
+45 608 m 555 608 l S
+0.03 0.09 0.22 rg
+BT /FR 8 Tf 51 594 Td (Paid) Tj ET
+0.03 0.09 0.22 rg
+BT /FR 8 Tf 241 594 Td (4 d) Tj ET
+0.03 0.09 0.22 rg
+BT /FR 8 Tf 323 594 Td (3 d) Tj ET
+0.03 0.09 0.22 rg
+BT /FR 8 Tf 393 594 Td (1 d) Tj ET
+0.03 0.09 0.22 rg
+BT /FR 8 Tf 463 594 Td (0 d) Tj ET
+0.55 0.58 0.64 RG
+45 586 m 555 586 l S
+0.48 0.52 0.60 RG
+45 586 510 66 re S
+235 586 m 235 652 l S
+317 586 m 317 652 l S
+387 586 m 387 652 l S
+457 586 m 457 652 l S
+555 586 m 555 652 l S
+0.03 0.09 0.22 rg
+BT /FR 9 Tf 45 48 Td (System generated leave balance sheet.) Tj ET
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000079 00000 n 
+0000000154 00000 n 
+0000000211 00000 n 
+0000000260 00000 n 
+0000000396 00000 n 
+trailer
+<< /Size 7 /Root 4 0 R >>
+startxref
+1905
+%%EOF

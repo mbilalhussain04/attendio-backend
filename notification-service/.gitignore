@@ -1,0 +1,17 @@
+.env
+.env.local
+.env.local.example
+.env.example
+.pytest_cache/
+**/__pycache__/
+**/*.pyc
+.coverage
+htmlcov/
+*.log
+*.sqlite3
+*.db
+.pytest_cache/
+.venv/
+.vscode/
+.idea/
+node_modules/

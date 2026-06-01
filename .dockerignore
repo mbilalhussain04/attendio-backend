@@ -1,0 +1,28 @@
+.git
+.github
+.pytest_cache
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+**/.DS_Store
+
+# Local runtime and editor noise
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/.env
+**/.env.*
+
+# Repo docs and helper artifacts not needed in image builds
+README.md
+TEST_RESULTS.txt
+Makefile
+scripts/
+
+# Service-specific local compose files are not needed by image builds
+auth-service/docker-compose.yml
+attendance-service/docker-compose.yml

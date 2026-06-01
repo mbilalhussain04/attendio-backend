@@ -1,0 +1,22 @@
+[
+  {
+    "event_name": "auth.employee.created",
+    "occurred_at": "2026-04-21T12:00:00Z",
+    "source": "auth-service",
+    "tenant_id": "company-uuid",
+    "payload": {
+      "employee_id": "user-uuid",
+      "email": "employee@example.com"
+    }
+  },
+  {
+    "event_name": "attendance.checkin.created",
+    "occurred_at": "2026-04-21T12:05:00Z",
+    "source": "attendance-service",
+    "tenant_id": "company-uuid",
+    "payload": {
+      "attendance_id": "att-uuid",
+      "employee_id": "user-uuid"
+    }
+  }
+]

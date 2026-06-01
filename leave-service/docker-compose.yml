@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: attendio_leave
+    ports:
+      - "5436:5432"
+    volumes:
+      - leave_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d attendio_leave"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  leave-api:
+    build:
+      context: ..
+      dockerfile: leave-service/Dockerfile
+    environment:
+      APP_PORT: 8004
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/attendio_leave
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-}
+      ATTENDANCE_SERVICE_URL: ${ATTENDANCE_SERVICE_URL:-}
+      BASE_DOMAIN: ${BASE_DOMAIN:-lvh.me}
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  leave_postgres_data:

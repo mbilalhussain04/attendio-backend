@@ -1,0 +1,336 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      attendance-service:
+        condition: service_healthy
+      leave-service:
+        condition: service_healthy
+      storage-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      billing-service:
+        condition: service_healthy
+      docs-gateway:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/nginx-health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  docs-gateway:
+    build:
+      context: .
+      dockerfile: docs-gateway/Dockerfile
+    env_file:
+      - ./.env
+    expose:
+      - "8090"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      attendance-service:
+        condition: service_healthy
+      leave-service:
+        condition: service_healthy
+      storage-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      billing-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      APP_PORT: ${AUTH_APP_PORT}
+      DATABASE_URL: ${AUTH_DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      DEFAULT_ROOT_DOMAIN: ${DEFAULT_ROOT_DOMAIN}
+      AUTH_BASE_DOMAIN: ${AUTH_BASE_DOMAIN}
+      FRONTEND_AFTER_LOGIN: ${FRONTEND_AFTER_LOGIN}
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
+      REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME}
+      ALLOW_EMAIL_LOGIN_FALLBACK: ${ALLOW_EMAIL_LOGIN_FALLBACK}
+      LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS}
+      LOGIN_LOCK_MINUTES: ${LOGIN_LOCK_MINUTES}
+      OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+      INTERNAL_EVENT_BACKEND: ${BROKER_BACKEND}
+    expose:
+      - "8000"
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/v1/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  attendance-service:
+    build:
+      context: .
+      dockerfile: attendance-service/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      APP_PORT: ${ATTENDANCE_APP_PORT}
+      DATABASE_URL: ${ATTENDANCE_DATABASE_URL}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
+      ATTENDANCE_SERVICE_URL: ${ATTENDANCE_SERVICE_URL}
+      BASE_DOMAIN: ${BASE_DOMAIN}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      ACCESS_TOKEN_COOKIE_NAME: ${ACCESS_TOKEN_COOKIE_NAME}
+      REDIS_URL: ${REDIS_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      INTERNAL_EVENT_BACKEND: ${BROKER_BACKEND}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE}
+    expose:
+      - "8001"
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  leave-service:
+    build:
+      context: .
+      dockerfile: leave-service/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      APP_PORT: ${LEAVE_APP_PORT}
+      DATABASE_URL: ${LEAVE_DATABASE_URL}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
+      BASE_DOMAIN: ${BASE_DOMAIN}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      ACCESS_TOKEN_COOKIE_NAME: ${ACCESS_TOKEN_COOKIE_NAME}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    expose:
+      - "8004"
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  storage-service:
+    build:
+      context: .
+      dockerfile: storage-service/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      APP_PORT: ${STORAGE_APP_PORT}
+      DATABASE_URL: ${STORAGE_DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_SECURE: ${MINIO_SECURE}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      PUBLIC_STORAGE_BASE_URL: ${PUBLIC_STORAGE_BASE_URL}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES}
+      REDIS_URL: ${REDIS_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      INTERNAL_EVENT_BACKEND: ${BROKER_BACKEND}
+    expose:
+      - "8002"
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8002/api/v1/storage/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      APP_PORT: ${NOTIFICATION_APP_PORT}
+      DATABASE_URL: ${NOTIFICATION_DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+    expose:
+      - "8003"
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8003/api/v1/notifications/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  billing-service:
+    build:
+      context: .
+      dockerfile: billing-service/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      APP_PORT: ${BILLING_APP_PORT}
+      DATABASE_URL: ${BILLING_DATABASE_URL}
+      BILLING_ENABLED: ${BILLING_ENABLED}
+      BILLING_PROVIDER: ${BILLING_PROVIDER}
+      TRIAL_DAYS: ${TRIAL_DAYS}
+      STANDARD_PLAN_PRICE_CENTS: ${STANDARD_PLAN_PRICE_CENTS}
+      STANDARD_PLAN_INCLUDED_LICENSES: ${STANDARD_PLAN_INCLUDED_LICENSES}
+      PAYMENT_GRACE_DAYS: ${PAYMENT_GRACE_DAYS}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      ACCESS_TOKEN_COOKIE_NAME: ${ACCESS_TOKEN_COOKIE_NAME}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_PRICE_STANDARD: ${STRIPE_PRICE_STANDARD}
+      PAYONEER_CLIENT_ID: ${PAYONEER_CLIENT_ID}
+      PAYONEER_CLIENT_SECRET: ${PAYONEER_CLIENT_SECRET}
+      PAYONEER_WEBHOOK_SECRET: ${PAYONEER_WEBHOOK_SECRET}
+    expose:
+      - "8005"
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8005/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  platform-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - platform_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  platform_pgdata:
+  minio_data:
