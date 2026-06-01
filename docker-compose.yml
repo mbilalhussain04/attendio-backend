@@ -305,6 +305,9 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
     ports:
       - "${INFRA_BIND:-127.0.0.1}:5672:5672"
       - "${INFRA_BIND:-127.0.0.1}:15672:15672"

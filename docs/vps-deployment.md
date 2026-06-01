@@ -65,11 +65,13 @@ git clone git@github.com:mbilalhussain04/attendio-frontend.git frontend
 
 ```bash
 cd /opt/attendio/backend
-cp .env.production.example .env
+python3 scripts/create-production-env.py --force
 nano .env
 ```
 
-Change every placeholder secret. Do not reuse local secrets.
+The generator creates strong values for Postgres, RabbitMQ, MinIO, app signing, JWT, and internal service tokens. After that, fill only the external provider values you actually use: Google, Microsoft, SMTP, Stripe/Payoneer.
+
+Never commit `.env`. Production secrets should live only on the VPS and in GitHub Actions secrets.
 
 Important production values:
 
@@ -89,6 +91,19 @@ OAUTH_REDIRECT_URI=https://api.attendio.technoflick.com/api/v1/auth/sso/callback
 CORS_ORIGINS=https://attendio.technoflick.com,https://api.attendio.technoflick.com
 PUBLIC_STORAGE_BASE_URL=https://api.attendio.technoflick.com/api/v1/storage/files
 ```
+
+If you already generated values manually with `openssl rand -hex 32`, map them like this inside VPS `.env`:
+
+```text
+POSTGRES_PASSWORD=<first generated value>
+SECRET_KEY=<second generated value>
+JWT_ACCESS_SECRET=<third generated value>
+INTERNAL_SERVICE_TOKEN=<fourth generated value>
+RABBITMQ_DEFAULT_PASS=<fifth generated value>
+MINIO_SECRET_KEY=<sixth generated value>
+```
+
+Then make sure every database URL uses the same `POSTGRES_PASSWORD`, and `RABBITMQ_URL` uses the same `RABBITMQ_DEFAULT_PASS`.
 
 ## Start backend containers
 
@@ -182,6 +197,50 @@ Recommended simple path:
 5. In frontend repo action: SSH to VPS, `cd /opt/attendio/frontend`, `git pull`, rebuild the frontend container.
 
 Use branch protection and deploy only from `main`.
+
+### One-time CI/CD setup
+
+On the VPS:
+
+```bash
+sudo adduser --disabled-password --gecos "" deploy
+sudo usermod -aG docker deploy
+sudo chown -R deploy:deploy /opt/attendio
+sudo -u deploy ssh-keygen -t ed25519 -C attendio-vps-github-pull -f /home/deploy/.ssh/github_pull -N ""
+sudo -u deploy cat /home/deploy/.ssh/github_pull.pub
+```
+
+Add that printed public key as a deploy key with read access in both GitHub repos.
+
+Then add an SSH key that GitHub Actions can use to enter the VPS:
+
+```bash
+sudo -u deploy ssh-keygen -t ed25519 -C attendio-actions-to-vps -f /home/deploy/.ssh/actions_to_vps -N ""
+sudo -u deploy sh -c 'cat /home/deploy/.ssh/actions_to_vps.pub >> /home/deploy/.ssh/authorized_keys'
+sudo -u deploy cat /home/deploy/.ssh/actions_to_vps
+```
+
+Put the private key printed by the last command into both repos as `VPS_SSH_KEY`, and set:
+
+```text
+VPS_HOST=178.105.220.187
+VPS_USER=deploy
+```
+
+Finally, make the cloned repos use the VPS GitHub pull key:
+
+```bash
+sudo -u deploy sh -c 'cat > /home/deploy/.ssh/config <<EOF
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/github_pull
+  IdentitiesOnly yes
+EOF'
+sudo -u deploy ssh -T git@github.com || true
+```
+
+After this, you do not clone manually again. Push to `main`, and GitHub Actions will SSH into the VPS, pull the latest code, rebuild containers, run migrations, and restart production.
 
 ## Smoke checks
 
