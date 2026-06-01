@@ -211,7 +211,13 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8002/api/v1/storage/health >/dev/null || exit 1"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8002/api/v1/storage/health')",
+        ]
       interval: 15s
       timeout: 5s
       retries: 20
@@ -234,7 +240,13 @@ services:
       platform-postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8003/api/v1/notifications/health >/dev/null || exit 1"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8003/api/v1/notifications/health')",
+        ]
       interval: 15s
       timeout: 5s
       retries: 20
