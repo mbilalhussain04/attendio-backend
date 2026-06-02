@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     API_V1_PREFIX: str = '/api/v1'
     SECRET_KEY: str = 'change-me'
+    JWT_ACCESS_SECRET: str | None = None
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     PASSWORD_RESET_EXPIRE_MINUTES: int = 30
@@ -82,6 +83,8 @@ class Settings(BaseSettings):
             self.MICROSOFT_CLIENT_SECRET = self.AZURE_CLIENT_SECRET
         if not self.MICROSOFT_TENANT_ID and self.AZURE_TENANT_ID:
             self.MICROSOFT_TENANT_ID = self.AZURE_TENANT_ID
+        if isinstance(self.JWT_ACCESS_SECRET, str) and not self.JWT_ACCESS_SECRET.strip():
+            self.JWT_ACCESS_SECRET = None
         for key in ('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET', 'MICROSOFT_TENANT_ID', 'MICROSOFT_AUTHORITY'):
             value = getattr(self, key)
             if isinstance(value, str) and not value.strip():

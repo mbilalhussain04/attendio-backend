@@ -24,7 +24,7 @@ def verify_password(password: str, password_hash: str | None) -> bool:
 def generate_token(payload: dict, expires_delta: timedelta) -> str:
     to_encode = payload.copy()
     to_encode['exp'] = datetime.now(timezone.utc) + expires_delta
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, settings.JWT_ACCESS_SECRET or settings.SECRET_KEY, algorithm=ALGORITHM)
 
 
 def create_access_token(payload: dict) -> str:
@@ -37,7 +37,7 @@ def create_refresh_token(payload: dict, days: int | None = None) -> str:
 
 def decode_token(token: str) -> dict:
     try:
-        return jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        return jwt.decode(token, settings.JWT_ACCESS_SECRET or settings.SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError as exc:
         raise ValueError('Invalid token') from exc
 
