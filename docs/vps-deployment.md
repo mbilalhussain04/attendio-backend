@@ -163,6 +163,14 @@ Issue certificates:
 sudo certbot --nginx -d attendio.technoflick.com -d api.attendio.technoflick.com
 ```
 
+This creates one SAN certificate under the first domain path:
+
+```text
+/etc/letsencrypt/live/attendio.technoflick.com/
+```
+
+The final Nginx config intentionally uses that same certificate path for both the frontend and API server blocks.
+
 After certificates exist, install the final HTTPS config:
 
 ```bash
