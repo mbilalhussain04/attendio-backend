@@ -1,4 +1,5 @@
 from starlette.middleware.base import BaseHTTPMiddleware
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.company import Company
 
@@ -7,9 +8,21 @@ def strip_port(host: str | None) -> str | None:
     return host.split(':')[0].lower() if host else None
 
 
+def platform_hosts() -> set[str]:
+    hosts = {
+        strip_port(settings.AUTH_BASE_DOMAIN),
+        strip_port(settings.DEFAULT_ROOT_DOMAIN),
+    }
+    if settings.DEFAULT_ROOT_DOMAIN:
+        hosts.add(f'www.{settings.DEFAULT_ROOT_DOMAIN.lower()}')
+        hosts.add(f'api.{settings.DEFAULT_ROOT_DOMAIN.lower()}')
+    return {item for item in hosts if item}
+
+
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         candidates = []
+        reserved_hosts = platform_hosts()
         for key in ['host', 'x-forwarded-host']:
             value = strip_port(request.headers.get(key))
             if value and value not in candidates:
@@ -24,7 +37,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         try:
             tenant = None
             for host in candidates:
-                if host in {'localhost', '127.0.0.1'}:
+                if host in {'localhost', '127.0.0.1'} or host in reserved_hosts:
                     continue
                 tenant = db.query(Company).filter(Company.domain == host, Company.status == 'active').first()
                 if tenant:
