@@ -26,10 +26,12 @@ jobs:
             git reset --hard origin/main
             test -f .env
             docker compose up --build -d --remove-orphans
+            docker compose exec -T nginx nginx -t
             docker compose exec -T nginx nginx -s reload || docker compose restart nginx
             docker compose exec -T auth-service alembic upgrade head
             docker compose exec -T attendance-service alembic upgrade head
             docker compose exec -T storage-service alembic upgrade head
             docker compose exec -T notification-service alembic upgrade head
             docker compose exec -T leave-service alembic upgrade head
+            sudo -n /usr/local/bin/attendio-reload-host-nginx || echo "Host Nginx reload skipped; install infra/vps/reload-host-nginx.sh with sudo access."
             docker compose ps

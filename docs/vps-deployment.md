@@ -290,6 +290,16 @@ EOF'
 sudo -u deploy ssh -T git@github.com || true
 ```
 
+Install the limited host Nginx reload helper so GitHub Actions can apply Nginx changes without broad sudo access:
+
+```bash
+sudo cp /opt/attendio/backend/infra/vps/reload-host-nginx.sh /usr/local/bin/attendio-reload-host-nginx
+sudo chmod 755 /usr/local/bin/attendio-reload-host-nginx
+echo 'deploy ALL=(root) NOPASSWD: /usr/local/bin/attendio-reload-host-nginx' | sudo tee /etc/sudoers.d/attendio-deploy-nginx
+sudo chmod 440 /etc/sudoers.d/attendio-deploy-nginx
+sudo visudo -cf /etc/sudoers.d/attendio-deploy-nginx
+```
+
 After this, you do not clone manually again. Push to `main`, and GitHub Actions will SSH into the VPS, pull the latest code, rebuild containers, run migrations, and restart production.
 
 ## Smoke checks

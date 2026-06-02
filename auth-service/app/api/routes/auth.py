@@ -103,6 +103,11 @@ def frontend_url(path: str | None, params: dict | None = None) -> str:
     return target
 
 
+def cleared_session_redirect(request: Request, url: str) -> RedirectResponse:
+    request.session.clear()
+    return RedirectResponse(url=url)
+
+
 def microsoft_token_diagnostics(token_value: str | None) -> dict:
     if not token_value or token_value.count('.') < 2:
         return {'has_access_token': bool(token_value), 'token_format': 'opaque'}
@@ -404,17 +409,17 @@ async def integration_callback(request: Request, db: Session = Depends(get_db)):
     company_id = request.session.pop('integration_company_id', None)
     expected_state = request.session.pop('integration_state', None)
     if not provider or not user_id or not company_id:
-        return RedirectResponse(url=frontend_url('/settings', {'integration': 'missing', 'status': 'error'}))
+        return cleared_session_redirect(request, frontend_url('/settings', {'integration': 'missing', 'status': 'error'}))
     if request.query_params.get('error'):
         reason = request.query_params.get('error_description') or request.query_params.get('error')
-        return RedirectResponse(url=frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': reason}))
+        return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': reason}))
     config = integration_provider_config(provider)
     if provider == 'microsoft_teams':
         if expected_state and request.query_params.get('state') != expected_state:
-            return RedirectResponse(url=frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': 'Microsoft OAuth state mismatch'}))
+            return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': 'Microsoft OAuth state mismatch'}))
         actor = db.get(User, UUID(str(user_id)))
         if not actor or str(actor.company_id) != str(company_id):
-            return RedirectResponse(url=frontend_url('/settings', {'integration': provider, 'status': 'error'}))
+            return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error'}))
         try:
             token = await exchange_microsoft_code(request.query_params.get('code') or '', str(request.url_for('integration_callback')))
         except HTTPException as exc:
@@ -433,11 +438,11 @@ async def integration_callback(request: Request, db: Session = Depends(get_db)):
             actor.company.metadata_json = metadata
             db.add(actor.company)
             db.commit()
-            return RedirectResponse(url=frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': str(exc.detail)}))
+            return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': str(exc.detail)}))
         save_microsoft_integration(actor.company, actor.email, token)
         db.add(actor.company)
         db.commit()
-        return RedirectResponse(url=frontend_url('/settings', {'integration': provider, 'status': 'connected'}))
+        return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'connected'}))
     client = oauth.create_client(config['oauth_name']) or oauth.register(
         name=config['oauth_name'],
         client_id=config['client_id'],
@@ -448,10 +453,10 @@ async def integration_callback(request: Request, db: Session = Depends(get_db)):
     try:
         token = await client.authorize_access_token(request)
     except OAuthError as exc:
-        return RedirectResponse(url=frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': oauth_error_message(provider, exc)}))
+        return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': oauth_error_message(provider, exc)}))
     actor = db.get(User, UUID(str(user_id)))
     if not actor or str(actor.company_id) != str(company_id):
-        return RedirectResponse(url=frontend_url('/settings', {'integration': provider, 'status': 'error'}))
+        return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error'}))
     metadata = dict(actor.company.metadata_json or {})
     if provider == 'microsoft_teams':
         save_microsoft_integration(actor.company, actor.email, token)
@@ -474,7 +479,7 @@ async def integration_callback(request: Request, db: Session = Depends(get_db)):
         actor.company.metadata_json = metadata
     db.add(actor.company)
     db.commit()
-    return RedirectResponse(url=frontend_url('/settings', {'integration': provider, 'status': 'connected'}))
+    return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'connected'}))
 
 
 @router.post('/refresh', tags=['Authentication'])
@@ -704,18 +709,19 @@ async def sso_callback(request: Request, response: Response, db: Session = Depen
     email_hint = request.session.pop('oauth_email_hint', None)
     next_path = request.session.pop('oauth_next', None)
     expected_state = request.session.pop('oauth_state', None)
+    tenant_slug = request.session.pop('oauth_tenant_slug', None)
     if provider not in {'google', 'microsoft'}:
-        return RedirectResponse(url=frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'SSO provider session is missing or expired'}))
+        return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'SSO provider session is missing or expired'}))
     if request.query_params.get('error'):
         reason = request.query_params.get('error_description') or request.query_params.get('error')
-        return RedirectResponse(url=frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': reason}))
+        return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': reason}))
     if provider == 'microsoft':
         if expected_state and request.query_params.get('state') != expected_state:
-            return RedirectResponse(url=frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'Microsoft OAuth state mismatch'}))
+            return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'Microsoft OAuth state mismatch'}))
         try:
             token = await exchange_microsoft_code(request.query_params.get('code') or '', settings.OAUTH_REDIRECT_URI)
         except HTTPException as exc:
-            return RedirectResponse(url=frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': str(exc.detail)}))
+            return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': str(exc.detail)}))
         profile = token.get('microsoft_profile') or {}
         email = profile.get('mail') or profile.get('userPrincipalName') or email_hint or ''
         userinfo = {
@@ -733,12 +739,12 @@ async def sso_callback(request: Request, response: Response, db: Session = Depen
             if not userinfo:
                 userinfo = await client.userinfo(token=token)
         except OAuthError as exc:
-            return RedirectResponse(url=frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': oauth_error_message(provider, exc)}))
-    tenant = getattr(request.state, 'tenant', None) or service.resolve_company_by_slug(db, slug=request.session.get('oauth_tenant_slug'))
+            return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': oauth_error_message(provider, exc)}))
+    tenant = getattr(request.state, 'tenant', None) or service.resolve_company_by_slug(db, slug=tenant_slug)
     try:
         data = service.sso_login(db, provider=provider, userinfo=dict(userinfo), tenant=tenant, email_hint=email_hint, request_meta=req_meta(request))
     except HTTPException as exc:
-        return RedirectResponse(url=frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': str(exc.detail)}))
+        return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': str(exc.detail)}))
     if provider == 'microsoft' and token.get('access_token'):
         save_microsoft_integration(data['company'], data['user'].email, token)
         db.add(data['company'])
@@ -746,6 +752,7 @@ async def sso_callback(request: Request, response: Response, db: Session = Depen
     redirect_url = frontend_url(next_path or settings.FRONTEND_AFTER_LOGIN, {'sso': 'success'})
     redirect_response = RedirectResponse(url=redirect_url)
     set_auth_cookies(redirect_response, data['access_token'], data['refresh_token'], data['company'], data.get('device_id'))
+    request.session.clear()
     return redirect_response
 
 
