@@ -117,6 +117,16 @@ docker compose ps
 
 Backend containers use `restart: unless-stopped`, so after the first successful `docker compose up -d` they will come back automatically after a VPS reboot or Docker daemon restart.
 
+Install the backend systemd unit so the Docker Compose stack is also started by the host during boot:
+
+```bash
+sudo cp /opt/attendio/backend/infra/vps/attendio-backend.service /etc/systemd/system/attendio-backend.service
+sudo systemctl daemon-reload
+sudo systemctl enable attendio-backend
+sudo systemctl start attendio-backend
+sudo systemctl status attendio-backend --no-pager
+```
+
 If Postgres fails during the very first fresh setup, inspect it with:
 
 ```bash
@@ -300,6 +310,15 @@ sudo chmod 755 /usr/local/bin/attendio-reload-host-nginx
 echo 'deploy ALL=(root) NOPASSWD: /usr/local/bin/attendio-reload-host-nginx' | sudo tee /etc/sudoers.d/attendio-deploy-nginx
 sudo chmod 440 /etc/sudoers.d/attendio-deploy-nginx
 sudo visudo -cf /etc/sudoers.d/attendio-deploy-nginx
+```
+
+Install the backend boot service too:
+
+```bash
+sudo cp /opt/attendio/backend/infra/vps/attendio-backend.service /etc/systemd/system/attendio-backend.service
+sudo systemctl daemon-reload
+sudo systemctl enable attendio-backend
+sudo systemctl start attendio-backend
 ```
 
 After this, you do not clone manually again. Push to `main`, and GitHub Actions will SSH into the VPS, pull the latest code, rebuild containers, run migrations, and restart production.
