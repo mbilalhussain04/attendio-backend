@@ -1,6 +1,7 @@
 services:
   nginx:
     image: nginx:1.27-alpine
+    restart: unless-stopped
     depends_on:
       auth-service:
         condition: service_healthy
@@ -30,6 +31,7 @@ services:
     build:
       context: .
       dockerfile: docs-gateway/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     expose:
@@ -63,6 +65,7 @@ services:
     build:
       context: .
       dockerfile: auth-service/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -111,6 +114,7 @@ services:
     build:
       context: .
       dockerfile: attendance-service/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -151,6 +155,7 @@ services:
     build:
       context: .
       dockerfile: leave-service/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -182,6 +187,7 @@ services:
     build:
       context: .
       dockerfile: storage-service/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -226,6 +232,7 @@ services:
     build:
       context: .
       dockerfile: notification-service/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -255,6 +262,7 @@ services:
     build:
       context: .
       dockerfile: billing-service/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -290,6 +298,7 @@ services:
 
   platform-postgres:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -313,6 +322,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "${INFRA_BIND:-127.0.0.1}:6379:6379"
     healthcheck:
@@ -323,6 +333,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
+    restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
@@ -337,6 +348,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}

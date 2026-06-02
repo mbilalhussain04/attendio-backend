@@ -115,6 +115,8 @@ docker compose up --build -d
 docker compose ps
 ```
 
+Backend containers use `restart: unless-stopped`, so after the first successful `docker compose up -d` they will come back automatically after a VPS reboot or Docker daemon restart.
+
 If Postgres fails during the very first fresh setup, inspect it with:
 
 ```bash
