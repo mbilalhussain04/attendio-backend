@@ -35,3 +35,5 @@ jobs:
             docker compose exec -T leave-service alembic upgrade head
             sudo -n /usr/local/bin/attendio-reload-host-nginx || echo "Host Nginx reload skipped; install infra/vps/reload-host-nginx.sh with sudo access."
             docker compose ps
+            curl -fsS http://127.0.0.1:8080/nginx-health
+            curl -fsS http://127.0.0.1:8080/api/v1/health
