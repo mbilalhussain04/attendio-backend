@@ -21,6 +21,19 @@ def set_value(lines: list[str], key: str, value: str) -> None:
     lines.append(f"{key}={value}")
 
 
+def parse_env(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    values: dict[str, str] = {}
+    for raw_line in path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate Attendio production .env")
     parser.add_argument("--frontend-url", default="https://attendio.technoflick.com")
@@ -33,6 +46,7 @@ def main() -> int:
     root = Path(__file__).resolve().parents[1]
     template = root / ".env.example"
     output = root / args.output
+    local_values = parse_env(root / ".env")
 
     if output.exists() and not args.force:
         raise SystemExit(f"{output} already exists. Re-run with --force to replace it.")
@@ -101,6 +115,28 @@ def main() -> int:
         "BILLING_SUCCESS_URL": f"{frontend_url}/settings?tab=billing&billing=success",
         "BILLING_CANCEL_URL": f"{frontend_url}/settings?tab=billing&billing=cancelled",
     }
+    provider_keys = [
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "MICROSOFT_CLIENT_ID",
+        "MICROSOFT_CLIENT_SECRET",
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_USERNAME",
+        "SMTP_PASSWORD",
+        "SMTP_USE_TLS",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "STRIPE_PRICE_STANDARD",
+        "PAYONEER_CLIENT_ID",
+        "PAYONEER_CLIENT_SECRET",
+        "PAYONEER_WEBHOOK_SECRET",
+    ]
+    for key in provider_keys:
+        value = local_values.get(key)
+        if value:
+            production_values[key] = value
+
     for key, value in production_values.items():
         set_value(lines, key, value)
 

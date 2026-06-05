@@ -264,7 +264,7 @@ Use branch protection and deploy only from `main`.
 
 ### Backend env sync
 
-Do not commit real `.env` files. Keep one real backend env file locally at `Services/.env` and one frontend env file at `attendio-frontend/.env`, then sync them to GitHub Actions secrets.
+Do not commit real `.env` files. Keep local development in `Services/.env`. Production uses an ignored `Services/.env.production` file so local settings never overwrite the VPS.
 
 One-time local setup:
 
@@ -288,11 +288,23 @@ Frontend repo: VPS_FRONTEND_ENV_B64
 
 On every deploy, each workflow decodes its secret to the matching VPS `.env` before rebuilding containers.
 
+Backend production env flow:
+
+```bash
+make prod-env
+nano .env.production
+make sync-prod-env
+```
+
+`make prod-env` creates `.env.production` only if it does not already exist. It sets production domains, secure cookies, container URLs, and `APP_ENV=production`. It copies provider credentials such as Google, Microsoft, SMTP, Stripe, and Payoneer from local `.env` when those values exist.
+
+`make sync-env` runs `make sync-prod-env` for backend and then syncs the frontend `.env`. The backend sync refuses any file where `APP_ENV` is not `production`.
+
 Manual fallback:
 
 ```bash
 cd /Users/bilalhussain/Documents/New-Backend/Services
-base64 -i .env | pbcopy
+base64 -i .env.production | pbcopy
 ```
 
 Then paste backend output into:
