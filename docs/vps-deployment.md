@@ -73,7 +73,15 @@ Never commit `.env`. There is only one backend env file name: `.env`.
 
 Local development uses the normal keys such as `APP_ENV=development`, localhost URLs, and local database settings. Production deploys use the `PROD_*` keys in the same `.env`; `make sync-env` renders those values into the `VPS_BACKEND_ENV_B64` GitHub secret with `APP_ENV=production`.
 
-If a `PROD_*` secret is blank, `make sync-env` generates it once and appends it to `.env`. After that the same value is reused on every deploy.
+Production persistent secrets must stay stable after the VPS database/volumes are created. In normal mode, `make sync-env` refuses to auto-generate missing persistent secrets such as `PROD_POSTGRES_PASSWORD`, because changing them can break an existing Postgres volume.
+
+For the first brand-new setup only, generate missing `PROD_*` secrets locally:
+
+```bash
+make init-prod-secrets
+```
+
+After that, keep those `PROD_*` values in your ignored `Services/.env` and run `make sync-env` whenever env changes need to reach GitHub Actions.
 
 Important production values:
 
@@ -96,6 +104,13 @@ PROD_MINIO_SECRET_KEY=<sixth generated value>
 ```
 
 Do not manually edit production database URLs. The sync script renders them from `PROD_POSTGRES_PASSWORD`.
+
+Important password rule:
+
+```text
+POSTGRES_PASSWORD=postgres             # local development only
+PROD_POSTGRES_PASSWORD=<fixed secret>  # production, never rotate casually
+```
 
 ## Start backend containers
 

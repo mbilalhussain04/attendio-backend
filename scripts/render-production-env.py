@@ -9,6 +9,7 @@ without accidentally shipping localhost/development values to production.
 from __future__ import annotations
 
 import argparse
+import os
 import secrets
 from pathlib import Path
 
@@ -43,6 +44,16 @@ def write_secret_additions(path: Path, additions: dict[str, str]) -> None:
     path.chmod(0o600)
 
 
+def missing_secret_error(prod_key: str) -> str:
+    return (
+        f"Missing {prod_key} in .env. Production persistent secrets are not "
+        "auto-generated during normal sync because changing them can break an "
+        "existing VPS volume. Put the current VPS value in .env, or run "
+        "ALLOW_PROD_SECRET_BOOTSTRAP=true make sync-env only for the first "
+        "brand-new production setup."
+    )
+
+
 def ensure_prod_value(
     values: dict[str, str],
     additions: dict[str, str],
@@ -61,6 +72,8 @@ def ensure_prod_value(
         values[prod_key] = fallback
         additions[prod_key] = fallback
         return fallback
+    if os.getenv("ALLOW_PROD_SECRET_BOOTSTRAP") != "true":
+        raise SystemExit(missing_secret_error(prod_key))
     generated = token()
     values[prod_key] = generated
     additions[prod_key] = generated
@@ -99,7 +112,7 @@ def main() -> int:
             values,
             additions,
             "MINIO_ACCESS_KEY",
-            f"attendio-{secrets.token_hex(8)}",
+            f"attendio-{secrets.token_hex(8)}" if os.getenv("ALLOW_PROD_SECRET_BOOTSTRAP") == "true" else None,
             legacy_values,
         )
         minio_secret_key = ensure_prod_value(values, additions, "MINIO_SECRET_KEY", legacy_values=legacy_values)
@@ -121,7 +134,7 @@ def main() -> int:
             raise SystemExit(
                 "Missing production values in .env: "
                 + ", ".join(missing)
-                + ". Re-run with --ensure-secrets or run make sync-env."
+                + ". Add the current VPS values to .env, or run make init-prod-secrets only for a brand-new production setup."
             )
         postgres_password = values["PROD_POSTGRES_PASSWORD"]
         rabbitmq_password = values["PROD_RABBITMQ_DEFAULT_PASS"]

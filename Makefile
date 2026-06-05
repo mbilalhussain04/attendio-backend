@@ -1,4 +1,4 @@
-.PHONY: up down logs rebuild test smoke migrate seed format local minio sync-env sync-frontend-env
+.PHONY: up down logs rebuild test smoke migrate seed format local minio init-prod-secrets sync-env sync-frontend-env
 
 up:
 	docker compose up --build -d
@@ -31,6 +31,9 @@ local:
 
 minio:
 	docker compose --env-file ./.env -f ./docker-compose.yml up -d minio
+
+init-prod-secrets:
+	ALLOW_PROD_SECRET_BOOTSTRAP=true python3 ./scripts/render-production-env.py --env-file ./.env --ensure-secrets >/dev/null
 
 sync-env:
 	bash ./scripts/sync-backend-env-secret.sh
