@@ -192,6 +192,16 @@ def microsoft_error_from_response(response: httpx.Response) -> str:
     return ': '.join(part for part in parts if part)
 
 
+def is_oauth_code_replay_error(exc: HTTPException) -> bool:
+    detail = str(exc.detail or '').lower()
+    return exc.status_code == 400 and (
+        'invalid_grant' in detail
+        or 'aadsts70000' in detail
+        or 'code has expired' in detail
+        or 'code parameter is not valid' in detail
+    )
+
+
 async def exchange_microsoft_code(code: str, redirect_uri: str) -> dict:
     tenant = microsoft_authority()
     async with httpx.AsyncClient(timeout=20) as client:
@@ -251,6 +261,9 @@ async def exchange_microsoft_code(code: str, redirect_uri: str) -> dict:
 def oauth_error_message(provider: str, exc: OAuthError) -> str:
     label = 'Microsoft' if provider in {'microsoft', 'microsoft_teams'} else 'Google' if provider in {'google', 'google_meet'} else 'OAuth'
     detail = getattr(exc, 'description', None) or getattr(exc, 'error', None) or str(exc)
+    normalized = str(detail or '').lower()
+    if 'invalid_grant' in normalized or 'code has expired' in normalized or 'code parameter is not valid' in normalized:
+        return f'{label} sign-in link expired. Please start sign-in again.'
     return f'{label} sign-in could not be completed. {detail}' if detail else f'{label} sign-in could not be completed. Please try again.'
 
 
@@ -415,7 +428,9 @@ async def integration_callback(request: Request, db: Session = Depends(get_db)):
         return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': reason}))
     config = integration_provider_config(provider)
     if provider == 'microsoft_teams':
-        if expected_state and request.query_params.get('state') != expected_state:
+        if not expected_state:
+            return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': 'Microsoft Teams connection expired. Please connect again.'}))
+        if request.query_params.get('state') != expected_state:
             return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': 'Microsoft OAuth state mismatch'}))
         actor = db.get(User, UUID(str(user_id)))
         if not actor or str(actor.company_id) != str(company_id):
@@ -423,6 +438,7 @@ async def integration_callback(request: Request, db: Session = Depends(get_db)):
         try:
             token = await exchange_microsoft_code(request.query_params.get('code') or '', str(request.url_for('integration_callback')))
         except HTTPException as exc:
+            reason = 'Microsoft Teams connection expired. Please connect again.' if is_oauth_code_replay_error(exc) else str(exc.detail)
             metadata = dict(actor.company.metadata_json or {})
             integrations = dict(metadata.get('integrations') or {})
             integrations['microsoft_teams'] = {
@@ -431,14 +447,14 @@ async def integration_callback(request: Request, db: Session = Depends(get_db)):
                 'name': 'Microsoft Teams',
                 'status': 'error',
                 'scheduling_enabled': False,
-                'last_error': str(exc.detail),
+                'last_error': reason,
                 'last_error_at': datetime.now(timezone.utc).isoformat(),
             }
             metadata['integrations'] = integrations
             actor.company.metadata_json = metadata
             db.add(actor.company)
             db.commit()
-            return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': str(exc.detail)}))
+            return cleared_session_redirect(request, frontend_url('/settings', {'integration': provider, 'status': 'error', 'reason': reason}))
         save_microsoft_integration(actor.company, actor.email, token)
         db.add(actor.company)
         db.commit()
@@ -716,12 +732,15 @@ async def sso_callback(request: Request, response: Response, db: Session = Depen
         reason = request.query_params.get('error_description') or request.query_params.get('error')
         return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': reason}))
     if provider == 'microsoft':
-        if expected_state and request.query_params.get('state') != expected_state:
+        if not expected_state:
+            return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'Microsoft sign-in link expired. Please start sign-in again.'}))
+        if request.query_params.get('state') != expected_state:
             return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'Microsoft OAuth state mismatch'}))
         try:
             token = await exchange_microsoft_code(request.query_params.get('code') or '', settings.OAUTH_REDIRECT_URI)
         except HTTPException as exc:
-            return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': str(exc.detail)}))
+            reason = 'Microsoft sign-in link expired. Please start sign-in again.' if is_oauth_code_replay_error(exc) else str(exc.detail)
+            return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': reason}))
         profile = token.get('microsoft_profile') or {}
         email = profile.get('mail') or profile.get('userPrincipalName') or email_hint or ''
         userinfo = {
