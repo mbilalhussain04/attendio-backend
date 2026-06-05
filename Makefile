@@ -1,4 +1,4 @@
-.PHONY: up down logs rebuild test smoke migrate seed format local minio prod-env sync-env sync-prod-env sync-frontend-env
+.PHONY: up down logs rebuild test smoke migrate seed format local minio sync-env sync-frontend-env
 
 up:
 	docker compose up --build -d
@@ -33,18 +33,8 @@ minio:
 	docker compose --env-file ./.env -f ./docker-compose.yml up -d minio
 
 sync-env:
-	$(MAKE) sync-prod-env
+	bash ./scripts/sync-backend-env-secret.sh
 	bash ./scripts/sync-frontend-env-secret.sh
-
-prod-env:
-	@if [ -f .env.production ]; then \
-		echo ".env.production already exists. Edit it if you need to change production secrets."; \
-	else \
-		python3 ./scripts/create-production-env.py --output .env.production; \
-	fi
-
-sync-prod-env: prod-env
-	BACKEND_ENV_FILE=./.env.production bash ./scripts/sync-backend-env-secret.sh
 
 sync-frontend-env:
 	bash ./scripts/sync-frontend-env-secret.sh

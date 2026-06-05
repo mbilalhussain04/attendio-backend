@@ -36,7 +36,7 @@ jobs:
             app_env="$(grep -E '^APP_ENV=' .env | tail -1 | cut -d= -f2- | tr -d '\"' || true)"
             if [ "$app_env" != "production" ]; then
               echo "Refusing production deploy because .env has APP_ENV='$app_env'."
-              echo "Update VPS_BACKEND_ENV_B64 from a production env, not local development .env."
+              echo "Run make sync-env locally so VPS_BACKEND_ENV_B64 is updated from the production render of Services/.env."
               exit 1
             fi
             set +e

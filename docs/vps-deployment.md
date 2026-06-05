@@ -65,45 +65,37 @@ git clone git@github.com:mbilalhussain04/attendio-frontend.git frontend
 
 ```bash
 cd /opt/attendio/backend
-python3 scripts/create-production-env.py --force
+cp .env.example .env
 nano .env
 ```
 
-The generator creates strong values for Postgres, RabbitMQ, MinIO, app signing, JWT, and internal service tokens. After that, fill only the external provider values you actually use: Google, Microsoft, SMTP, Stripe/Payoneer.
+Never commit `.env`. There is only one backend env file name: `.env`.
 
-Never commit `.env`. Production secrets should live only on the VPS and in GitHub Actions secrets.
+Local development uses the normal keys such as `APP_ENV=development`, localhost URLs, and local database settings. Production deploys use the `PROD_*` keys in the same `.env`; `make sync-env` renders those values into the `VPS_BACKEND_ENV_B64` GitHub secret with `APP_ENV=production`.
+
+If a `PROD_*` secret is blank, `make sync-env` generates it once and appends it to `.env`. After that the same value is reused on every deploy.
 
 Important production values:
 
 ```text
-APP_ENV=production
-DEBUG=false
-GATEWAY_BIND=127.0.0.1
-GATEWAY_PORT=8080
-INFRA_BIND=127.0.0.1
-COOKIE_SECURE=true
-COOKIE_DOMAIN=.attendio.technoflick.com
-DEFAULT_ROOT_DOMAIN=attendio.technoflick.com
-AUTH_BASE_DOMAIN=api.attendio.technoflick.com
-BASE_DOMAIN=attendio.technoflick.com
-FRONTEND_BASE_URL=https://attendio.technoflick.com
-OAUTH_REDIRECT_URI=https://api.attendio.technoflick.com/api/v1/auth/sso/callback
-CORS_ORIGINS=https://attendio.technoflick.com,https://api.attendio.technoflick.com
-PUBLIC_STORAGE_BASE_URL=https://api.attendio.technoflick.com/api/v1/storage/files
+PROD_ROOT_DOMAIN=attendio.technoflick.com
+PROD_API_DOMAIN=api.attendio.technoflick.com
+PROD_FRONTEND_BASE_URL=https://attendio.technoflick.com
+PROD_API_BASE_URL=https://api.attendio.technoflick.com
 ```
 
 If you already generated values manually with `openssl rand -hex 32`, map them like this inside VPS `.env`:
 
 ```text
-POSTGRES_PASSWORD=<first generated value>
-SECRET_KEY=<second generated value>
-JWT_ACCESS_SECRET=<third generated value>
-INTERNAL_SERVICE_TOKEN=<fourth generated value>
-RABBITMQ_DEFAULT_PASS=<fifth generated value>
-MINIO_SECRET_KEY=<sixth generated value>
+PROD_POSTGRES_PASSWORD=<first generated value>
+PROD_SECRET_KEY=<second generated value>
+PROD_JWT_ACCESS_SECRET=<third generated value>
+PROD_INTERNAL_SERVICE_TOKEN=<fourth generated value>
+PROD_RABBITMQ_DEFAULT_PASS=<fifth generated value>
+PROD_MINIO_SECRET_KEY=<sixth generated value>
 ```
 
-Then make sure every database URL uses the same `POSTGRES_PASSWORD`, and `RABBITMQ_URL` uses the same `RABBITMQ_DEFAULT_PASS`.
+Do not manually edit production database URLs. The sync script renders them from `PROD_POSTGRES_PASSWORD`.
 
 ## Start backend containers
 
@@ -264,7 +256,9 @@ Use branch protection and deploy only from `main`.
 
 ### Backend env sync
 
-Do not commit real `.env` files. Keep local development in `Services/.env`. Production uses an ignored `Services/.env.production` file so local settings never overwrite the VPS.
+Do not commit real backend `.env` secrets. Keep local development and production deploy secrets in the same ignored `Services/.env` file. Local runtime ignores `PROD_*`; production deploy reads `PROD_*` and renders a clean VPS `.env`.
+
+Frontend uses the same idea in `attendio-frontend/.env`: local Vite keys stay local, and `PROD_VITE_*` keys are rendered into the frontend deploy secret.
 
 One-time local setup:
 
@@ -288,23 +282,13 @@ Frontend repo: VPS_FRONTEND_ENV_B64
 
 On every deploy, each workflow decodes its secret to the matching VPS `.env` before rebuilding containers.
 
-Backend production env flow:
-
-```bash
-make prod-env
-nano .env.production
-make sync-prod-env
-```
-
-`make prod-env` creates `.env.production` only if it does not already exist. It sets production domains, secure cookies, container URLs, and `APP_ENV=production`. It copies provider credentials such as Google, Microsoft, SMTP, Stripe, and Payoneer from local `.env` when those values exist.
-
-`make sync-env` runs `make sync-prod-env` for backend and then syncs the frontend `.env`. The backend sync refuses any file where `APP_ENV` is not `production`.
+`make sync-env` updates the backend GitHub secret from a production render of `Services/.env`, then updates the frontend GitHub secret from a production render of `attendio-frontend/.env`.
 
 Manual fallback:
 
 ```bash
 cd /Users/bilalhussain/Documents/New-Backend/Services
-base64 -i .env.production | pbcopy
+python3 scripts/render-production-env.py --env-file .env --ensure-secrets | base64 | tr -d '\n' | pbcopy
 ```
 
 Then paste backend output into:
