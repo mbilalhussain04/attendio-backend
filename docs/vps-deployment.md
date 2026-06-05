@@ -107,7 +107,7 @@ Then make sure every database URL uses the same `POSTGRES_PASSWORD`, and `RABBIT
 
 ## Start backend containers
 
-The backend gateway is bound to `127.0.0.1:8080` by `.env.production.example`, so only host Nginx can reach it. Postgres, Redis, RabbitMQ, and MinIO are also bound to localhost.
+The backend gateway is bound to `127.0.0.1:8080` by production `.env` values, so only host Nginx can reach it. Postgres, Redis, RabbitMQ, and MinIO are also bound to localhost.
 
 ```bash
 cd /opt/attendio/backend
@@ -255,10 +255,64 @@ Recommended simple path:
    - `VPS_HOST`
    - `VPS_USER`
    - `VPS_SSH_KEY`
+   - `VPS_BACKEND_ENV_B64` in the backend repo, optional but recommended
+   - `VPS_FRONTEND_ENV_B64` in the frontend repo, optional but recommended
 4. In backend repo action: SSH to VPS, `cd /opt/attendio/backend`, update `main`, run `docker compose up --build -d --remove-orphans`, then run migrations.
 5. In frontend repo action: SSH to VPS, `cd /opt/attendio/frontend`, `git pull`, rebuild the frontend container.
 
 Use branch protection and deploy only from `main`.
+
+### Backend env sync
+
+Do not commit real `.env` files. Keep one real backend env file locally at `Services/.env` and one frontend env file at `attendio-frontend/.env`, then sync them to GitHub Actions secrets.
+
+One-time local setup:
+
+```bash
+cd /Users/bilalhussain/Documents/New-Backend/Services
+gh auth login
+```
+
+After any backend or frontend `.env` change:
+
+```bash
+make sync-env
+```
+
+The command updates:
+
+```text
+Backend repo:  VPS_BACKEND_ENV_B64
+Frontend repo: VPS_FRONTEND_ENV_B64
+```
+
+On every deploy, each workflow decodes its secret to the matching VPS `.env` before rebuilding containers.
+
+Manual fallback:
+
+```bash
+cd /Users/bilalhussain/Documents/New-Backend/Services
+base64 -i .env | pbcopy
+```
+
+Then paste backend output into:
+
+```text
+Backend repo -> Settings -> Secrets and variables -> Actions -> VPS_BACKEND_ENV_B64
+```
+
+For frontend fallback:
+
+```bash
+cd /Users/bilalhussain/Documents/New-Backend/attendio-frontend
+base64 -i .env | pbcopy
+```
+
+Then paste frontend output into:
+
+```text
+Frontend repo -> Settings -> Secrets and variables -> Actions -> VPS_FRONTEND_ENV_B64
+```
 
 ### One-time CI/CD setup
 

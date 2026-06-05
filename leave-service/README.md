@@ -9,7 +9,7 @@ contracts and the storage service for attachments.
 From `Services/`, the normal local stack command starts this service too:
 
 ```bash
-cp .env.local.example .env.local
+cp .env.example .env
 bash ./scripts/local-install.sh
 make local
 ```

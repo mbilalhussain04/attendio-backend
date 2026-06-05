@@ -10,8 +10,6 @@ SERVICES_DIR = SERVICE_DIR.parent
 ENV_FILES = (
     SERVICES_DIR / ".env",
     SERVICE_DIR / ".env",
-    SERVICES_DIR / ".env.local",
-    SERVICE_DIR / ".env.local",
 )
 
 

@@ -106,7 +106,7 @@ You can run the Python services directly and keep Docker as an optional path.
 This still needs PostgreSQL and Redis running on your machine.
 
 ```bash
-cp .env.local.example .env.local
+cp .env.example .env
 bash ./scripts/local-install.sh
 make local
 ```
@@ -130,7 +130,7 @@ The local services prefer MinIO at `localhost:9000` by default. With `STORAGE_BA
 
 Homebrew PostgreSQL often creates a role matching your macOS username instead
 of `postgres`. If you see `role "postgres" does not exist`, set these in
-`.env.local`:
+`.env`:
 
 ```text
 POSTGRES_USER=your-mac-username
@@ -139,16 +139,17 @@ AUTH_DATABASE_URL=postgresql+psycopg://your-mac-username@localhost:5432/attendio
 ATTENDANCE_DATABASE_URL=postgresql+psycopg://your-mac-username@localhost:5432/attendio_attendance
 STORAGE_DATABASE_URL=postgresql+psycopg://your-mac-username@localhost:5432/attendio_storage
 LEAVE_DATABASE_URL=postgresql+psycopg://your-mac-username@localhost:5432/attendio_leave
+BILLING_DATABASE_URL=postgresql+psycopg://your-mac-username@localhost:5432/attendio_billing
 ```
 
-Local config lives in `.env.local` and overrides the Docker hostnames from `.env`.
-The important local values are:
+Local config lives in the root `.env`. Docker Compose uses the same file and overrides container-only hostnames internally, so you do not need a second env file. The important local values are:
 
 ```text
 AUTH_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/attendio_auth
 ATTENDANCE_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/attendio_attendance
 STORAGE_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/attendio_storage
 LEAVE_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/attendio_leave
+BILLING_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/attendio_billing
 REDIS_URL=redis://localhost:6379/0
 AUTH_SERVICE_URL=http://localhost:8000
 ```

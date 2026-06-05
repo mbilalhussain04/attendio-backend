@@ -1,4 +1,4 @@
-.PHONY: up down logs rebuild test smoke migrate seed format local minio
+.PHONY: up down logs rebuild test smoke migrate seed format local minio sync-env
 
 up:
 	docker compose up --build -d
@@ -30,4 +30,8 @@ local:
 	bash ./scripts/run-local.sh
 
 minio:
-	docker compose --env-file ./.env.local -f ./docker-compose.yml up -d minio
+	docker compose --env-file ./.env -f ./docker-compose.yml up -d minio
+
+sync-env:
+	bash ./scripts/sync-backend-env-secret.sh
+	bash ./scripts/sync-frontend-env-secret.sh

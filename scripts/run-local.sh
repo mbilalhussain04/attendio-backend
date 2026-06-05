@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env.local"
+ENV_FILE="$ROOT_DIR/.env"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  cp "$ROOT_DIR/.env.local.example" "$ENV_FILE"
-  echo "Created $ENV_FILE from .env.local.example"
+  cp "$ROOT_DIR/.env.example" "$ENV_FILE"
+  echo "Created $ENV_FILE from .env.example"
 fi
 
 command_exists() {
