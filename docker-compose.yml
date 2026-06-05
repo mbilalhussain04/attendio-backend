@@ -69,7 +69,7 @@ services:
     env_file:
       - ./.env
     environment:
-      APP_PORT: ${AUTH_APP_PORT}
+      APP_PORT: ${AUTH_APP_PORT:-8000}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@platform-postgres:5432/${AUTH_DB_NAME}
       REDIS_URL: redis://redis:6379/0
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
@@ -118,7 +118,7 @@ services:
     env_file:
       - ./.env
     environment:
-      APP_PORT: ${ATTENDANCE_APP_PORT}
+      APP_PORT: ${ATTENDANCE_APP_PORT:-8001}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@platform-postgres:5432/${ATTENDANCE_DB_NAME}
       AUTH_SERVICE_URL: http://auth-service:8000
       ATTENDANCE_SERVICE_URL: http://attendance-service:8001
@@ -159,17 +159,24 @@ services:
     env_file:
       - ./.env
     environment:
-      APP_PORT: ${LEAVE_APP_PORT}
+      APP_PORT: ${LEAVE_APP_PORT:-8004}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@platform-postgres:5432/${LEAVE_DB_NAME}
       AUTH_SERVICE_URL: http://auth-service:8000
       BASE_DOMAIN: ${BASE_DOMAIN}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       ACCESS_TOKEN_COOKIE_NAME: ${ACCESS_TOKEN_COOKIE_NAME}
       CORS_ORIGINS: ${CORS_ORIGINS}
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
+      INTERNAL_EVENT_BACKEND: ${BROKER_BACKEND:-redis}
     expose:
       - "8004"
     depends_on:
       platform-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test:
@@ -191,7 +198,7 @@ services:
     env_file:
       - ./.env
     environment:
-      APP_PORT: ${STORAGE_APP_PORT}
+      APP_PORT: ${STORAGE_APP_PORT:-8002}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@platform-postgres:5432/${STORAGE_DB_NAME}
       SECRET_KEY: ${SECRET_KEY}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
@@ -236,7 +243,7 @@ services:
     env_file:
       - ./.env
     environment:
-      APP_PORT: ${NOTIFICATION_APP_PORT}
+      APP_PORT: ${NOTIFICATION_APP_PORT:-8003}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@platform-postgres:5432/${NOTIFICATION_DB_NAME}
       SECRET_KEY: ${SECRET_KEY}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
@@ -266,7 +273,7 @@ services:
     env_file:
       - ./.env
     environment:
-      APP_PORT: ${BILLING_APP_PORT}
+      APP_PORT: ${BILLING_APP_PORT:-8005}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@platform-postgres:5432/${BILLING_DB_NAME}
       BILLING_ENABLED: ${BILLING_ENABLED}
       BILLING_PROVIDER: ${BILLING_PROVIDER}

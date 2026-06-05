@@ -32,7 +32,17 @@ jobs:
               chmod 600 .env
             fi
             test -f .env
-            docker compose up --build -d --remove-orphans
+            docker compose up --build -d --remove-orphans || {
+              echo "Docker Compose failed. Service status:"
+              docker compose ps
+              echo "Leave service logs:"
+              docker compose logs --tail=200 leave-service
+              echo "Postgres logs:"
+              docker compose logs --tail=120 platform-postgres
+              echo "Auth service logs:"
+              docker compose logs --tail=120 auth-service
+              exit 1
+            }
             docker compose exec -T nginx nginx -t
             docker compose exec -T nginx nginx -s reload || docker compose restart nginx
             docker compose exec -T auth-service alembic upgrade head
