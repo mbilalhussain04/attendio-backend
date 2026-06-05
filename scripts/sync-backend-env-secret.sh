@@ -21,6 +21,13 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
+app_env="$(grep -E '^APP_ENV=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '"' || true)"
+if [ "${ALLOW_NON_PRODUCTION_ENV_SYNC:-false}" != "true" ] && [ "$app_env" != "production" ]; then
+  echo "Refusing to sync $ENV_FILE because APP_ENV='$app_env'." >&2
+  echo "VPS_BACKEND_ENV_B64 must contain a production env. Set ALLOW_NON_PRODUCTION_ENV_SYNC=true only for a temporary test VPS." >&2
+  exit 1
+fi
+
 encoded="$(base64 < "$ENV_FILE" | tr -d '\n')"
 if [ -z "$encoded" ]; then
   echo "Backend env file is empty: $ENV_FILE" >&2
