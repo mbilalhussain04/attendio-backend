@@ -1,6 +1,7 @@
 from datetime import date, datetime, timezone
 import base64
 import json
+import logging
 import secrets
 from fastapi import APIRouter, Depends, Request, Response, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -46,6 +47,7 @@ MICROSOFT_GRAPH_SCOPE = 'openid email profile offline_access https://graph.micro
 MICROSOFT_AUTHORIZE_URL = 'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize'
 MICROSOFT_TOKEN_URL = 'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token'
 oauth = OAuth()
+logger = logging.getLogger(__name__)
 
 
 def req_meta(request: Request):
@@ -741,6 +743,9 @@ async def sso_callback(request: Request, response: Response, db: Session = Depen
         except HTTPException as exc:
             reason = 'Microsoft sign-in link expired. Please start sign-in again.' if is_oauth_code_replay_error(exc) else str(exc.detail)
             return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': reason}))
+        except httpx.HTTPError:
+            logger.exception('Microsoft SSO token exchange failed')
+            return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'Microsoft sign-in could not reach Microsoft services. Please try again.'}))
         profile = token.get('microsoft_profile') or {}
         email = profile.get('mail') or profile.get('userPrincipalName') or email_hint or ''
         userinfo = {
@@ -759,15 +764,26 @@ async def sso_callback(request: Request, response: Response, db: Session = Depen
                 userinfo = await client.userinfo(token=token)
         except OAuthError as exc:
             return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': oauth_error_message(provider, exc)}))
+        except Exception:
+            logger.exception('Google SSO token exchange failed')
+            return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'Google sign-in could not be completed. Please start sign-in again.'}))
     tenant = getattr(request.state, 'tenant', None) or service.resolve_company_by_slug(db, slug=tenant_slug)
     try:
         data = service.sso_login(db, provider=provider, userinfo=dict(userinfo), tenant=tenant, email_hint=email_hint, request_meta=req_meta(request))
     except HTTPException as exc:
         return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': str(exc.detail)}))
+    except Exception:
+        logger.exception('SSO login failed')
+        db.rollback()
+        return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'SSO login could not be completed. Please try again.'}))
     if provider == 'microsoft' and token.get('access_token'):
-        save_microsoft_integration(data['company'], data['user'].email, token)
-        db.add(data['company'])
-        db.commit()
+        try:
+            save_microsoft_integration(data['company'], data['user'].email, token)
+            db.add(data['company'])
+            db.commit()
+        except Exception:
+            logger.exception('Microsoft integration auto-save failed after SSO')
+            db.rollback()
     redirect_url = frontend_url(next_path or settings.FRONTEND_AFTER_LOGIN, {'sso': 'success'})
     redirect_response = RedirectResponse(url=redirect_url)
     set_auth_cookies(redirect_response, data['access_token'], data['refresh_token'], data['company'], data.get('device_id'))
