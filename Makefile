@@ -1,9 +1,13 @@
-.PHONY: up down logs rebuild test smoke migrate seed format local minio init-prod-secrets sync-env sync-frontend-env
+.PHONY: up down reset-local logs rebuild test smoke migrate seed format local minio init-prod-secrets sync-env sync-frontend-env
 
 up:
 	docker compose up --build -d
 
 down:
+	docker compose down
+
+reset-local:
+	@echo "This deletes local Docker database/storage volumes. Never run this on production."
 	docker compose down -v
 
 logs:

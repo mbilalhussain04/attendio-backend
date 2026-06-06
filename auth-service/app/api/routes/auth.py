@@ -43,7 +43,8 @@ from app.services.sso import get_provider_config, microsoft_authority
 from authlib.integrations.starlette_client import OAuth
 
 router = APIRouter(prefix='/auth')
-MICROSOFT_GRAPH_SCOPE = 'openid email profile offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/Calendars.ReadWrite'
+MICROSOFT_LOGIN_SCOPE = 'openid email profile offline_access https://graph.microsoft.com/User.Read'
+MICROSOFT_GRAPH_SCOPE = f'{MICROSOFT_LOGIN_SCOPE} https://graph.microsoft.com/Calendars.ReadWrite'
 MICROSOFT_AUTHORIZE_URL = 'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize'
 MICROSOFT_TOKEN_URL = 'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token'
 oauth = OAuth()
@@ -204,7 +205,7 @@ def is_oauth_code_replay_error(exc: HTTPException) -> bool:
     )
 
 
-async def exchange_microsoft_code(code: str, redirect_uri: str) -> dict:
+async def exchange_microsoft_code(code: str, redirect_uri: str, *, scope: str = MICROSOFT_GRAPH_SCOPE, probe_calendar: bool = True) -> dict:
     tenant = microsoft_authority()
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.post(
@@ -215,7 +216,7 @@ async def exchange_microsoft_code(code: str, redirect_uri: str) -> dict:
                 'grant_type': 'authorization_code',
                 'code': code,
                 'redirect_uri': redirect_uri,
-                'scope': MICROSOFT_GRAPH_SCOPE,
+                'scope': scope,
             },
         )
         if response.status_code >= 400:
@@ -232,6 +233,9 @@ async def exchange_microsoft_code(code: str, redirect_uri: str) -> dict:
         if me.status_code >= 400:
             raise HTTPException(status_code=400, detail=f'Microsoft Graph identity probe failed: {microsoft_error_from_response(me)}')
         token['microsoft_profile'] = me.json()
+
+        if not probe_calendar:
+            return token
 
         today = date.today().isoformat()
         probe = await client.get(
@@ -739,7 +743,12 @@ async def sso_callback(request: Request, response: Response, db: Session = Depen
         if request.query_params.get('state') != expected_state:
             return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'Microsoft OAuth state mismatch'}))
         try:
-            token = await exchange_microsoft_code(request.query_params.get('code') or '', settings.OAUTH_REDIRECT_URI)
+            token = await exchange_microsoft_code(
+                request.query_params.get('code') or '',
+                settings.OAUTH_REDIRECT_URI,
+                scope=MICROSOFT_LOGIN_SCOPE,
+                probe_calendar=False,
+            )
         except HTTPException as exc:
             reason = 'Microsoft sign-in link expired. Please start sign-in again.' if is_oauth_code_replay_error(exc) else str(exc.detail)
             return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': reason}))
@@ -776,14 +785,6 @@ async def sso_callback(request: Request, response: Response, db: Session = Depen
         logger.exception('SSO login failed')
         db.rollback()
         return cleared_session_redirect(request, frontend_url(settings.FRONTEND_SSO_ERROR, {'sso_error': 'SSO login could not be completed. Please try again.'}))
-    if provider == 'microsoft' and token.get('access_token'):
-        try:
-            save_microsoft_integration(data['company'], data['user'].email, token)
-            db.add(data['company'])
-            db.commit()
-        except Exception:
-            logger.exception('Microsoft integration auto-save failed after SSO')
-            db.rollback()
     redirect_url = frontend_url(next_path or settings.FRONTEND_AFTER_LOGIN, {'sso': 'success'})
     redirect_response = RedirectResponse(url=redirect_url)
     set_auth_cookies(redirect_response, data['access_token'], data['refresh_token'], data['company'], data.get('device_id'))
@@ -813,9 +814,9 @@ async def start_sso(provider: str, request: Request):
             "response_type": "code",
             "redirect_uri": settings.OAUTH_REDIRECT_URI,
             "response_mode": "query",
-            "scope": MICROSOFT_GRAPH_SCOPE,
+            "scope": MICROSOFT_LOGIN_SCOPE,
             "state": state,
-            "prompt": "consent",
+            "prompt": "select_account",
         })}'
         return RedirectResponse(url=authorize_url)
     client = oauth.create_client(provider) or oauth.register(name=provider, **config)

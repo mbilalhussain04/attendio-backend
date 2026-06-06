@@ -6,6 +6,8 @@ This guide keeps three modes working:
 - Local Docker: `docker compose up --build`
 - Production VPS: Docker Compose behind host Nginx + Let's Encrypt
 
+Production deploys must never recreate database volumes. Code updates are applied with `docker compose up --build -d --remove-orphans` plus Alembic migrations. Do not run `docker compose down -v`, `docker volume rm`, or `make reset-local` on a VPS with real data.
+
 ## Target domains
 
 Use one public frontend and one public API gateway:
@@ -147,7 +149,7 @@ docker compose down -v
 docker compose up --build -d
 ```
 
-Do not run `down -v` after real users/data exist; use backups and migrations instead.
+Do not run `down -v` after real users/data exist; use backups and migrations instead. The normal `make down` target stops containers without deleting volumes. The explicit `make reset-local` target is only for local development resets.
 
 ## Start frontend container
 
@@ -214,6 +216,8 @@ Backend:
 ```bash
 cd /opt/attendio/backend
 git pull
+mkdir -p /opt/attendio/backups
+docker compose exec -T platform-postgres pg_dumpall -U attendio | gzip > /opt/attendio/backups/postgres-before-manual-deploy-$(date -u +%Y%m%d%H%M%S).sql.gz
 docker compose up --build -d --remove-orphans
 docker compose exec nginx nginx -s reload || docker compose restart nginx
 docker compose exec auth-service alembic upgrade head
@@ -298,6 +302,23 @@ Frontend repo: VPS_FRONTEND_ENV_B64
 On every deploy, each workflow decodes its secret to the matching VPS `.env` before rebuilding containers.
 
 `make sync-env` updates the backend GitHub secret from a production render of `Services/.env`, then updates the frontend GitHub secret from a production render of `attendio-frontend/.env`.
+
+The backend workflow creates a compressed Postgres backup in `/opt/attendio/backups` before rebuilding containers. If that backup fails, the deploy stops instead of risking user data.
+
+## Data Safety Rules
+
+Use migrations for schema changes and keep them additive/backward-compatible whenever possible:
+
+- Safe: add nullable columns, add new tables, backfill data in a migration, then deploy code that uses it.
+- Risky: rename/drop columns, delete tables, or change enum values without a data migration and rollback plan.
+- Never in production: `docker compose down -v`, manual volume deletion, changing `COMPOSE_PROJECT_NAME`, or rotating `PROD_POSTGRES_PASSWORD` without a planned database password migration.
+
+Before a major release, take a manual backup and test restore:
+
+```bash
+mkdir -p /opt/attendio/backups
+docker compose exec -T platform-postgres pg_dumpall -U attendio | gzip > /opt/attendio/backups/postgres-manual-$(date -u +%Y%m%d%H%M%S).sql.gz
+```
 
 Manual fallback:
 
