@@ -216,8 +216,8 @@ Backend:
 ```bash
 cd /opt/attendio/backend
 git pull
-mkdir -p /opt/attendio/backups
-docker compose exec -T platform-postgres pg_dumpall -U attendio | gzip > /opt/attendio/backups/postgres-before-manual-deploy-$(date -u +%Y%m%d%H%M%S).sql.gz
+mkdir -p /opt/attendio/backend/backups
+docker compose exec -T platform-postgres pg_dumpall -U attendio | gzip > /opt/attendio/backend/backups/postgres-before-manual-deploy-$(date -u +%Y%m%d%H%M%S).sql.gz
 docker compose up --build -d --remove-orphans
 docker compose exec nginx nginx -s reload || docker compose restart nginx
 docker compose exec auth-service alembic upgrade head
@@ -303,7 +303,7 @@ On every deploy, each workflow decodes its secret to the matching VPS `.env` bef
 
 `make sync-env` updates the backend GitHub secret from a production render of `Services/.env`, then updates the frontend GitHub secret from a production render of `attendio-frontend/.env`.
 
-The backend workflow creates a compressed Postgres backup in `/opt/attendio/backups` before rebuilding containers. If that backup fails, the deploy stops instead of risking user data.
+The backend workflow creates a compressed Postgres backup in `/opt/attendio/backend/backups` before rebuilding containers. If that backup fails, the deploy stops instead of risking user data.
 
 ## Data Safety Rules
 
@@ -316,8 +316,8 @@ Use migrations for schema changes and keep them additive/backward-compatible whe
 Before a major release, take a manual backup and test restore:
 
 ```bash
-mkdir -p /opt/attendio/backups
-docker compose exec -T platform-postgres pg_dumpall -U attendio | gzip > /opt/attendio/backups/postgres-manual-$(date -u +%Y%m%d%H%M%S).sql.gz
+mkdir -p /opt/attendio/backend/backups
+docker compose exec -T platform-postgres pg_dumpall -U attendio | gzip > /opt/attendio/backend/backups/postgres-manual-$(date -u +%Y%m%d%H%M%S).sql.gz
 ```
 
 Manual fallback:
@@ -439,8 +439,9 @@ sudo systemctl reload nginx
 Minimum production backup:
 
 ```bash
-docker exec attendio-platform-platform-postgres-1 pg_dumpall -U attendio > /opt/attendio/backups/postgres-$(date +%F).sql
-docker run --rm -v attendio-platform_minio_data:/data -v /opt/attendio/backups:/backup alpine tar czf /backup/minio-$(date +%F).tgz /data
+mkdir -p /opt/attendio/backend/backups
+docker exec attendio-platform-platform-postgres-1 pg_dumpall -U attendio > /opt/attendio/backend/backups/postgres-$(date +%F).sql
+docker run --rm -v attendio-platform_minio_data:/data -v /opt/attendio/backend/backups:/backup alpine tar czf /backup/minio-$(date +%F).tgz /data
 ```
 
 Automate this with cron before real users arrive.

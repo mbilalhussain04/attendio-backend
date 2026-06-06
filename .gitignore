@@ -9,6 +9,7 @@ htmlcov/
 *.log
 *.sqlite3
 *.db
+backups/
 .pytest_cache/
 .venv/
 .vscode/

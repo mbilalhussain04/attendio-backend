@@ -26,17 +26,18 @@ jobs:
           script: |
             set -e
             cd /opt/attendio/backend
-            mkdir -p /opt/attendio/backups
+            backup_dir="/opt/attendio/backend/backups"
+            mkdir -p "$backup_dir"
             if [ -f .env ] && docker compose ps -q platform-postgres >/tmp/attendio-postgres-container 2>/dev/null && [ -s /tmp/attendio-postgres-container ]; then
               existing_pg_user="$(grep -E '^POSTGRES_USER=' .env | tail -1 | cut -d= -f2- | tr -d '\"' || true)"
               existing_pg_user="${existing_pg_user:-attendio}"
-              backup_file="/opt/attendio/backups/postgres-before-deploy-$(date -u +%Y%m%d%H%M%S).sql.gz"
+              backup_file="$backup_dir/postgres-before-deploy-$(date -u +%Y%m%d%H%M%S).sql.gz"
               echo "Creating pre-deploy Postgres backup: $backup_file"
               if ! docker compose exec -T platform-postgres pg_dumpall -U "$existing_pg_user" | gzip > "$backup_file"; then
                 echo "Pre-deploy backup failed; refusing deploy to protect production data."
                 exit 1
               fi
-              find /opt/attendio/backups -name 'postgres-before-deploy-*.sql.gz' -mtime +14 -delete || true
+              find "$backup_dir" -name 'postgres-before-deploy-*.sql.gz' -mtime +14 -delete || true
             else
               echo "No running Postgres container found; skipping pre-deploy backup."
             fi
