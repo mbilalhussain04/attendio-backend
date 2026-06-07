@@ -3,10 +3,46 @@
 This guide keeps three modes working:
 
 - Local Python services: `make local`
-- Local Docker: `docker compose up --build`
+- Local Docker: `docker compose --env-file .env up --build -d`
 - Production VPS: Docker Compose behind host Nginx + Let's Encrypt
 
 Production deploys must never recreate database volumes. Code updates are applied with `docker compose up --build -d --remove-orphans` plus Alembic migrations. Do not run `docker compose down -v`, `docker volume rm`, or `make reset-local` on a VPS with real data.
+
+## Local modes
+
+There is one backend env file name: `.env`.
+
+For local development, `.env` must stay host-local:
+
+```text
+APP_ENV=development
+POSTGRES_HOST=localhost
+POSTGRES_PORT=55432
+POSTGRES_PASSWORD=postgres
+REDIS_URL=redis://localhost:6379/0
+RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+MINIO_ENDPOINT=localhost:9000
+```
+
+`POSTGRES_PORT=55432` is intentional. Many Macs already have a system PostgreSQL on `5432`, so Attendio local infra uses `55432` on the host while Docker containers still talk to Postgres internally on `platform-postgres:5432`.
+
+Run without Docker:
+
+```bash
+make local
+```
+
+`make local` does not start Docker or Docker Desktop. It runs the Python services directly. If PostgreSQL is not already reachable at `localhost:55432`, the script starts a native local PostgreSQL data directory at `.local-postgres/` when `initdb`, `pg_ctl`, and `postgres` are installed. If Redis is not already reachable and `redis-server` is installed, it starts a local Redis process too.
+
+Run with Docker:
+
+```bash
+docker compose --env-file .env up --build -d
+```
+
+This is the Docker mode. Use it when you want the full container stack instead of native local services. `docker compose build` only builds images; `up --build -d` builds and runs them.
+
+Production deploys do not use these local host URLs. `make sync-env` renders production values from `PROD_*` keys, including Docker/VPS hosts like `platform-postgres:5432`.
 
 ## Target domains
 
@@ -202,7 +238,16 @@ sudo systemctl reload nginx
 
 ## OAuth provider redirects
 
-Set these in Google/Microsoft dashboards:
+Set these in Google/Microsoft dashboards. Local and production are separate exact redirect URIs, so both sets should be registered while you are testing locally and deploying publicly.
+
+Local:
+
+```text
+http://localhost:8090/api/v1/auth/sso/callback
+http://localhost:8090/api/v1/auth/integrations/callback
+```
+
+Production:
 
 ```text
 https://api.attendio.technoflick.com/api/v1/auth/sso/callback

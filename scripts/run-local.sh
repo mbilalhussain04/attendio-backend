@@ -21,6 +21,58 @@ fi
 
 eval "$("$PYTHON_BIN" "$ROOT_DIR/scripts/export-env.py" "$ENV_FILE")"
 export PYTHONPATH="$ROOT_DIR/shared/python:${PYTHONPATH:-}"
+
+normalize_local_runtime_env() {
+  if [[ "${APP_ENV:-development}" == "production" ]]; then
+    return
+  fi
+
+  if [[ "${POSTGRES_HOST:-}" == "platform-postgres" ]]; then
+    export POSTGRES_HOST=localhost
+  fi
+
+  local database_url_name database_url_value
+  local postgres_port="${POSTGRES_PORT:-5432}"
+  for database_url_name in \
+    AUTH_DATABASE_URL \
+    ATTENDANCE_DATABASE_URL \
+    STORAGE_DATABASE_URL \
+    NOTIFICATION_DATABASE_URL \
+    LEAVE_DATABASE_URL \
+    BILLING_DATABASE_URL; do
+    database_url_value="${!database_url_name:-}"
+    if [[ -n "$database_url_value" ]]; then
+      database_url_value="${database_url_value//@platform-postgres:/@localhost:}"
+      database_url_value="${database_url_value//@localhost:5432/@localhost:$postgres_port}"
+      export "$database_url_name=$database_url_value"
+    fi
+  done
+
+  export REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}"
+  export REDIS_URL="${REDIS_URL//\/\/redis:/\/\/localhost:}"
+  export RABBITMQ_URL="${RABBITMQ_URL:-amqp://guest:guest@localhost:5672/}"
+  export RABBITMQ_URL="${RABBITMQ_URL//@rabbitmq:/@localhost:}"
+  export MINIO_ENDPOINT="${MINIO_ENDPOINT:-localhost:9000}"
+  export MINIO_ENDPOINT="${MINIO_ENDPOINT//minio:/localhost:}"
+
+  export AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://localhost:8000}"
+  export AUTH_SERVICE_URL="${AUTH_SERVICE_URL//auth-service/localhost}"
+  export ATTENDANCE_SERVICE_URL="${ATTENDANCE_SERVICE_URL:-http://localhost:8001}"
+  export ATTENDANCE_SERVICE_URL="${ATTENDANCE_SERVICE_URL//attendance-service/localhost}"
+  export STORAGE_SERVICE_URL="${STORAGE_SERVICE_URL:-http://localhost:8002}"
+  export STORAGE_SERVICE_URL="${STORAGE_SERVICE_URL//storage-service/localhost}"
+  export NOTIFICATION_SERVICE_URL="${NOTIFICATION_SERVICE_URL:-http://localhost:8003}"
+  export NOTIFICATION_SERVICE_URL="${NOTIFICATION_SERVICE_URL//notification-service/localhost}"
+  export LEAVE_SERVICE_URL="${LEAVE_SERVICE_URL:-http://localhost:8004}"
+  export LEAVE_SERVICE_URL="${LEAVE_SERVICE_URL//leave-service/localhost}"
+  export BILLING_SERVICE_URL="${BILLING_SERVICE_URL:-http://localhost:8005}"
+  export BILLING_SERVICE_URL="${BILLING_SERVICE_URL//billing-service/localhost}"
+  export DOCS_GATEWAY_URL="${DOCS_GATEWAY_URL:-http://localhost:8090}"
+  export DOCS_GATEWAY_URL="${DOCS_GATEWAY_URL//docs-gateway/localhost}"
+}
+
+normalize_local_runtime_env
+
 # Existing local env files created before leave-service do not have these keys.
 export LEAVE_DB_NAME="${LEAVE_DB_NAME:-attendio_leave}"
 if [[ -z "${LEAVE_DATABASE_URL:-}" && -n "${ATTENDANCE_DATABASE_URL:-}" ]]; then
@@ -40,6 +92,76 @@ urllib.request.urlopen(f"{scheme}://{endpoint}/minio/health/live", timeout=2)
 PY
 }
 
+postgres_is_ready() {
+  "$PYTHON_BIN" - <<'PY' >/dev/null 2>&1
+import os
+from urllib.parse import quote
+
+import psycopg
+
+user = os.environ.get("POSTGRES_USER", "postgres")
+password = os.environ.get("POSTGRES_PASSWORD", "")
+host = os.environ.get("POSTGRES_HOST", "localhost")
+port = os.environ.get("POSTGRES_PORT", "5432")
+auth = quote(user)
+if password:
+    auth = f"{auth}:{quote(password)}"
+with psycopg.connect(f"postgresql://{auth}@{host}:{port}/postgres", connect_timeout=2):
+    pass
+PY
+}
+
+start_local_postgres() {
+  if postgres_is_ready; then
+    return
+  fi
+
+  if ! command_exists initdb || ! command_exists pg_ctl || ! command_exists postgres; then
+    return
+  fi
+
+  local data_dir="${ATTENDIO_LOCAL_POSTGRES_DIR:-$ROOT_DIR/.local-postgres}"
+  local postgres_port="${POSTGRES_PORT:-55432}"
+  mkdir -p "$data_dir"
+
+  if [[ ! -s "$data_dir/PG_VERSION" ]]; then
+    echo "Initializing local PostgreSQL in $data_dir..."
+    initdb -D "$data_dir" -U "${POSTGRES_USER:-postgres}" --auth=trust >/dev/null
+  fi
+
+  echo "Starting local PostgreSQL on localhost:$postgres_port..."
+  pg_ctl -D "$data_dir" \
+    -o "-h 127.0.0.1 -p $postgres_port" \
+    -l "$data_dir/postgres.log" \
+    start >/dev/null
+
+  for _ in {1..30}; do
+    postgres_is_ready && return
+    sleep 1
+  done
+}
+
+start_local_redis() {
+  if "$PYTHON_BIN" - <<'PY' >/dev/null 2>&1
+import os
+from urllib.parse import urlparse
+import redis
+
+url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+redis.Redis.from_url(url).ping()
+PY
+  then
+    return
+  fi
+
+  if command_exists redis-server; then
+    local redis_dir="${ATTENDIO_LOCAL_REDIS_DIR:-$ROOT_DIR/.local-redis}"
+    mkdir -p "$redis_dir"
+    echo "Starting local Redis on localhost:6379..."
+    redis-server --port 6379 --dir "$redis_dir" --daemonize yes >/dev/null
+  fi
+}
+
 start_local_minio() {
   if minio_is_ready; then
     return
@@ -50,14 +172,29 @@ start_local_minio() {
       minio server "${MINIO_DATA_DIR:-$HOME/minio-data}" --console-address ":9001" >/tmp/attendio-minio.log 2>&1 &
     minio_pid=$!
     for _ in {1..20}; do minio_is_ready && return; sleep 1; done
-  elif command_exists docker && docker info >/dev/null 2>&1; then
-    docker compose --env-file "$ENV_FILE" -f "$ROOT_DIR/docker-compose.yml" up -d minio >/dev/null
-    for _ in {1..30}; do minio_is_ready && return; sleep 1; done
   fi
 }
 
+start_local_postgres
+start_local_redis
 start_local_minio
 "$PYTHON_BIN" "$ROOT_DIR/scripts/ensure-local-infra.py"
+
+run_service_migration() {
+  local service_dir="$1"
+  local service_name="$2"
+  echo "Running $service_name migrations..."
+  (
+    cd "$ROOT_DIR/$service_dir"
+    "$PYTHON_BIN" -m alembic upgrade head
+  )
+}
+
+run_service_migration "auth-service" "auth-service"
+run_service_migration "attendance-service" "attendance-service"
+run_service_migration "storage-service" "storage-service"
+run_service_migration "notification-service" "notification-service"
+run_service_migration "leave-service" "leave-service"
 
 cleanup() {
   if [[ -n "${auth_pid:-}" ]]; then
@@ -89,35 +226,30 @@ trap cleanup EXIT INT TERM
 
 (
   cd "$ROOT_DIR/auth-service"
-  "$PYTHON_BIN" -m alembic upgrade head
   "$PYTHON_BIN" run.py
 ) &
 auth_pid=$!
 
 (
   cd "$ROOT_DIR/attendance-service"
-  "$PYTHON_BIN" -m alembic upgrade head
   "$PYTHON_BIN" run.py
 ) &
 attendance_pid=$!
 
 (
   cd "$ROOT_DIR/storage-service"
-  "$PYTHON_BIN" -m alembic upgrade head
   "$PYTHON_BIN" run.py
 ) &
 storage_pid=$!
 
 (
   cd "$ROOT_DIR/notification-service"
-  "$PYTHON_BIN" -m alembic upgrade head
   "$PYTHON_BIN" run.py
 ) &
 notification_pid=$!
 
 (
   cd "$ROOT_DIR/leave-service"
-  "$PYTHON_BIN" -m alembic upgrade head
   "$PYTHON_BIN" run.py
 ) &
 leave_pid=$!

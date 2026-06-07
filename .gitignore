@@ -12,6 +12,9 @@ htmlcov/
 backups/
 .pytest_cache/
 .venv/
+.local-postgres/
+.local-redis/
+.local-storage/
 .vscode/
 .idea/
 node_modules/

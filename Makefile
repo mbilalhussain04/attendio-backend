@@ -25,6 +25,8 @@ test:
 migrate:
 	docker compose exec auth-service alembic upgrade head
 	docker compose exec attendance-service alembic upgrade head
+	docker compose exec storage-service alembic upgrade head
+	docker compose exec notification-service alembic upgrade head
 	docker compose exec leave-service alembic upgrade head
 
 seed:

@@ -45,6 +45,20 @@ def _code_prefix(name: str | None) -> str:
     return ''.join(word[0] for word in words)[:4].ljust(4, 'X')
 
 
+def _assignment_entry_kind(metadata: dict | None) -> str:
+    metadata = metadata or {}
+    kind = str(metadata.get('entry_kind') or '').strip().lower()
+    provider = str(metadata.get('external_provider') or '').strip().lower()
+    source = str(metadata.get('source') or '').strip().lower()
+    if provider == 'microsoft_teams' or source == 'microsoft_graph':
+        return 'meeting'
+    if metadata.get('calendar_owner_id') or metadata.get('calendar_owner_email') or metadata.get('attendee_emails'):
+        return 'meeting'
+    if kind in {'shift', 'meeting'}:
+        return kind
+    return 'shift'
+
+
 class SchedulingService:
     def serialize_shift(self, item: ShiftTemplate):
         return {
@@ -80,6 +94,11 @@ class SchedulingService:
             'employee_id': str(item.employee_id),
             'employee_name': ' '.join(part for part in [getattr(employee, 'first_name', ''), getattr(employee, 'last_name', '')] if part) if employee else None,
             'employee_code': getattr(employee, 'employee_code', None) if employee else None,
+            'employee_email': getattr(employee, 'email', None) if employee else None,
+            'calendar_owner_id': metadata.get('calendar_owner_id'),
+            'calendar_owner_name': metadata.get('calendar_owner_name'),
+            'calendar_owner_email': metadata.get('calendar_owner_email'),
+            'entry_kind': _assignment_entry_kind(metadata),
             'shift_template_id': str(item.shift_template_id),
             'shift_name': shift.name if shift else None,
             'shift_code': shift.code if shift else None,
@@ -170,7 +189,7 @@ class SchedulingService:
         log_audit(db, company_id=actor.company_id, actor_user_id=actor.id, action='schedule.roster_saved', entity_type='roster_template', entity_id=item.id, ip_address=request_meta.get('ip_address'), user_agent=request_meta.get('user_agent'), payload={'name': item.name})
         return item
 
-    def list_assignments(self, db: Session, *, actor: User, date_from=None, date_to=None, employee_id: str | None = None):
+    def list_assignments(self, db: Session, *, actor: User, date_from=None, date_to=None, employee_id: str | None = None, employee_ids: set[str] | None = None):
         stmt = select(ScheduleAssignment, ShiftTemplate, User).join(ShiftTemplate, ShiftTemplate.id == ScheduleAssignment.shift_template_id).join(User, User.id == ScheduleAssignment.employee_id).where(ScheduleAssignment.company_id == actor.company_id)
         if date_from:
             stmt = stmt.where(ScheduleAssignment.work_date >= date_from)
@@ -178,11 +197,21 @@ class SchedulingService:
             stmt = stmt.where(ScheduleAssignment.work_date <= date_to)
         if employee_id:
             stmt = stmt.where(ScheduleAssignment.employee_id == _to_uuid(employee_id, 'employee_id'))
+        elif employee_ids is not None:
+            ids = [_to_uuid(value, 'employee_id') for value in employee_ids if value]
+            if not ids:
+                return []
+            stmt = stmt.where(ScheduleAssignment.employee_id.in_(ids))
         stmt = stmt.where(ScheduleAssignment.status != 'cancelled')
         stmt = stmt.order_by(ScheduleAssignment.work_date.asc(), ShiftTemplate.start_time.asc())
         return db.execute(stmt).all()
 
     def upsert_assignment(self, db: Session, *, actor: User, payload, request_meta: dict):
+        payload_kind = str(getattr(payload, 'entry_kind', None) or 'shift').strip().lower()
+        if str(getattr(payload, 'sync_provider', '') or '').strip().lower() == 'microsoft_teams':
+            payload_kind = 'meeting'
+        if payload_kind != 'shift':
+            bad_request('Meeting events must be saved through the Meetings API')
         employee = db.get(User, _to_uuid(payload.employee_id, 'employee_id'))
         if not employee or employee.company_id != actor.company_id or employee.status == 'deleted':
             not_found('Employee not found')
@@ -199,6 +228,9 @@ class SchedulingService:
         for assignment, existing_shift, _ in existing_rows:
             if payload.id and str(assignment.id) == str(payload.id):
                 continue
+            existing_kind = _assignment_entry_kind(assignment.metadata_json)
+            if existing_kind != payload_kind:
+                continue
             if assignment.status != 'cancelled' and _schedule_conflict(shift, existing_shift):
                 conflicts.append(self.serialize_assignment(assignment, existing_shift, employee))
         if conflicts and not payload.force:
@@ -211,6 +243,7 @@ class SchedulingService:
         item.status = payload.status
         item.notes = payload.notes
         metadata = dict(item.metadata_json or {})
+        metadata['entry_kind'] = payload_kind
         for key in ('location', 'attendee_emails', 'repeat_rule'):
             value = getattr(payload, key, None)
             if value:

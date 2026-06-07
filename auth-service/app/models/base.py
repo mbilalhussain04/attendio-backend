@@ -9,4 +9,4 @@ from app.models.audit_log import AuditLog
 from app.models.login_history import LoginHistory
 from app.models.verification_token import VerificationToken
 from app.models.api_key import ApiKey
-from app.models.scheduling import ShiftTemplate, RosterTemplate, ScheduleAssignment
+from app.models.scheduling import ShiftTemplate, RosterTemplate, ScheduleAssignment, MeetingEvent

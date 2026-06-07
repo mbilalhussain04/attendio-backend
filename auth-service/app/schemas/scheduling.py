@@ -58,8 +58,10 @@ class ScheduleAssignmentRequest(BaseModel):
     status: str = Field(default='scheduled', pattern='^(scheduled|published|completed|cancelled|absent|no_show|late|sick|excused)$')
     notes: str | None = Field(default=None, max_length=500)
     location: str | None = Field(default=None, max_length=200)
+    color: str | None = Field(default=None, max_length=24)
     attendee_emails: list[str] = Field(default_factory=list)
     repeat_rule: str | None = Field(default=None, max_length=80)
+    entry_kind: str | None = Field(default=None, pattern='^(shift|meeting)$')
     force: bool = False
     sync_provider: str | None = Field(default=None, pattern='^(microsoft_teams)$')
     create_online_meeting: bool = True

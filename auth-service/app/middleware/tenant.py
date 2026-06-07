@@ -1,7 +1,13 @@
 from starlette.middleware.base import BaseHTTPMiddleware
+import logging
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.company import Company
+
+
+logger = logging.getLogger(__name__)
 
 
 def strip_port(host: str | None) -> str | None:
@@ -51,6 +57,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
             if not tenant and tenant_slug:
                 tenant = db.query(Company).filter(Company.slug == tenant_slug, Company.status == 'active').first()
             request.state.tenant = tenant
+        except SQLAlchemyError as exc:
+            logger.warning('Tenant lookup skipped because the database is unavailable: %s', exc)
+            logger.debug('Tenant lookup database error', exc_info=True)
+            request.state.tenant = None
         finally:
             db.close()
         return await call_next(request)

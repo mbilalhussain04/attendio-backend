@@ -4,8 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 SERVICE_DIR = Path(__file__).resolve().parents[2]
 SERVICES_DIR = SERVICE_DIR.parent
 ENV_FILES = (
-    SERVICES_DIR / ".env",
     SERVICE_DIR / ".env",
+    SERVICES_DIR / ".env",
 )
 
 

@@ -317,7 +317,7 @@ services:
       LEAVE_DB_NAME: ${LEAVE_DB_NAME}
       BILLING_DB_NAME: ${BILLING_DB_NAME}
     ports:
-      - "${INFRA_BIND:-127.0.0.1}:5432:5432"
+      - "${INFRA_BIND:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - platform_pgdata:/var/lib/postgresql/data
       - ./infra/postgres-init:/docker-entrypoint-initdb.d:ro

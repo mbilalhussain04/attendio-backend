@@ -5,7 +5,7 @@ SERVICE_DIR = Path(__file__).resolve().parents[2]
 SERVICES_DIR = SERVICE_DIR.parent
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=(SERVICES_DIR / ".env", SERVICE_DIR / ".env"), case_sensitive=True, extra="ignore")
+    model_config = SettingsConfigDict(env_file=(SERVICE_DIR / ".env", SERVICES_DIR / ".env"), case_sensitive=True, extra="ignore")
     APP_NAME: str = "Attendio Notification Service"
     APP_ENV: str = "development"
     APP_HOST: str = "0.0.0.0"
